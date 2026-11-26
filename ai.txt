@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 認證互動模擬考系統（50 題／40 分鐘）</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    /* 自訂捲軸讓題號面板更清爽 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col selection:bg-indigo-100 selection:text-indigo-900">
+  <!-- 頂部導覽與計時列 -->
+  <header class="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-sm shrink-0 shadow-sm">
+          AI
+        </div>
+        <div class="truncate">
+          <h1 class="text-sm sm:text-base font-bold text-slate-900 truncate">AI 認證互動模擬考</h1>
+          <p class="text-xs text-slate-500 hidden sm:block">共 90 題題庫 · 每次抽 50 題 · 每題 2 分（70 分及格）</p>
+        </div>
+      </div>
+
+      <!-- 計時器與功能按鈕 -->
+      <div id="headerControls" class="flex items-center gap-2 sm:gap-3">
+        <div id="timerBox" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono font-bold text-sm sm:text-base">
+          <span aria-hidden="true">⏱</span>
+          <span id="timerDisplay">40:00</span>
+        </div>
+        <button
+          id="togglePauseBtn"
+          type="button"
+          onclick="togglePauseExam()"
+          class="px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-slate-100 hover:bg-slate-200 active:scale-[0.99] text-slate-700 border border-slate-200 transition cursor-pointer"
+        >
+          暫停
+        </button>
+        <button
+          id="openPaletteMobileBtn"
+          type="button"
+          onclick="toggleMobilePalette(true)"
+          class="lg:hidden px-3 py-1.5 rounded-xl text-xs sm:text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white transition cursor-pointer"
+        >
+          題號卡
+        </button>
+      </div>
+    </div>
+
+    <!-- 進度條 -->
+    <div class="w-full bg-slate-100 h-1.5">
+      <div id="progressBar" class="bg-indigo-600 h-1.5 transition-all duration-300" style="width: 0%;"></div>
+    </div>
+  </header>
+
+  <!-- 系統訊息提示列（取代 alert/confirm） -->
+  <div id="toastBanner" class="hidden max-w-4xl w-full mx-auto px-4 pt-3">
+    <div id="toastInner" class="rounded-xl px-4 py-3 text-sm font-medium flex items-center justify-between gap-3 border shadow-sm">
+      <span id="toastMessage"></span>
+      <button type="button" onclick="hideToast()" class="text-xs underline opacity-80 hover:opacity-100 cursor-pointer shrink-0">關閉</button>
+    </div>
+  </div>
+
+  <!-- 主內容區 -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-28 sm:pb-24">
+    <!-- 測驗作答視圖 -->
+    <div id="examView" class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      <!-- 左側／主要作答卡片 -->
+      <section class="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-7">
+        <!-- 題目資訊列 -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-100">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span id="qNumberBadge" class="px-3 py-1 rounded-full bg-indigo-600 text-white text-xs sm:text-sm font-bold">
+              第 1 / 50 題
+            </span>
+            <span id="qChapterBadge" class="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-medium">
+              第一章
+            </span>
+            <span id="qOriginBadge" class="text-xs text-slate-400">
+              原題號：1-01
+            </span>
+          </div>
+          <span id="answeredCountBadge" class="text-xs sm:text-sm font-medium text-slate-600">
+            已作答：0 / 50 題
+          </span>
+        </div>
+
+        <!-- 題目文字 -->
+        <h2 id="questionText" class="text-base sm:text-lg font-bold text-slate-900 leading-relaxed mb-6">
+          載入題目中...
+        </h2>
+
+        <!-- 選項列表 -->
+        <div id="optionsContainer" class="space-y-3" role="radiogroup" aria-label="單選題選項"></div>
+
+        <!-- 清除本題作答 -->
+        <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between text-xs sm:text-sm text-slate-500">
+          <span>提示：作答期間不會顯示答案與解析，交卷後統一公布。</span>
+          <button
+            type="button"
+            onclick="clearCurrentAnswer()"
+            class="text-slate-500 hover:text-rose-600 font-medium transition cursor-pointer"
+          >
+            清除本題選項
+          </button>
+        </div>
+      </section>
+
+      <!-- 右側桌機題號快速跳轉面板 -->
+      <aside class="hidden lg:block lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sticky top-20">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-slate-800 text-sm">題號快速跳轉（50 題）</h3>
+          <span class="text-xs text-slate-500">點擊題號切換</span>
+        </div>
+
+        <!-- 圖例 -->
+        <div class="flex items-center gap-4 text-xs text-slate-600 mb-4 pb-3 border-b border-slate-100">
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-indigo-600 inline-block"></span>目前題目
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-emerald-100 border border-emerald-400 inline-block"></span>已作答
+          </span>
+          <span class="flex items-center gap-1.5">
+            <span class="w-3 h-3 rounded bg-slate-100 border border-slate-200 inline-block"></span>未作答
+          </span>
+        </div>
+
+        <div id="desktopPalette" class="grid grid-cols-10 gap-1.5 max-h-[360px] overflow-y-auto pr-1"></div>
+
+        <div class="mt-5 pt-4 border-t border-slate-100 space-y-2.5">
+          <button
+            type="button"
+            onclick="requestSubmitExam()"
+            class="w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white font-bold text-sm shadow-sm transition cursor-pointer"
+          >
+            完成作答並交卷
+          </button>
+          <button
+            type="button"
+            onclick="requestRestartExam()"
+            class="w-full py-2 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition cursor-pointer"
+          >
+            重新抽題／開始新測驗
+          </button>
+        </div>
+      </aside>
+    </div>
+
+    <!-- 手機版題號抽屜 -->
+    <div id="mobilePaletteModal" class="fixed inset-0 z-50 hidden lg:hidden">
+      <div class="fixed inset-0 bg-slate-900/40 backdrop-blur-[1px]" onclick="toggleMobilePalette(false)"></div>
+      <div class="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl p-5 shadow-2xl max-h-[78vh] overflow-y-auto">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-slate-900 text-base">題號跳轉面板</h3>
+          <button
+            type="button"
+            onclick="toggleMobilePalette(false)"
+            class="px-3 py-1 rounded-lg bg-slate-100 text-slate-700 text-sm font-medium cursor-pointer"
+          >
+            關閉
+          </button>
+        </div>
+        <div id="mobilePalette" class="grid grid-cols-8 sm:grid-cols-10 gap-2 mb-4"></div>
+        <button
+          type="button"
+          onclick="toggleMobilePalette(false); requestSubmitExam();"
+          class="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm cursor-pointer"
+        >
+          立即交卷看成績與解析
+        </button>
+      </div>
+    </div>
+
+    <!-- 交卷確認對話框（自訂 Modal，不用 confirm） -->
+    <div id="confirmSubmitModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+      <div class="fixed inset-0 bg-slate-900/40" onclick="closeSubmitModal()"></div>
+      <div class="relative z-10 bg-white rounded-2xl max-w-md w-full p-6 shadow-xl border border-slate-200">
+        <h3 class="text-lg font-bold text-slate-900 mb-2">確定要交卷嗎？</h3>
+        <p id="confirmSubmitDesc" class="text-sm text-slate-600 leading-relaxed mb-5">
+          交卷後將立即計算成績並公布所有題目的正確答案與解析。
+        </p>
+        <div class="flex items-center justify-end gap-2.5">
+          <button
+            type="button"
+            onclick="closeSubmitModal()"
+            class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-medium cursor-pointer"
+          >
+            繼續作答
+          </button>
+          <button
+            type="button"
+            onclick="finalizeExam('manual')"
+            class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold cursor-pointer"
+          >
+            確認交卷
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 成績與解析視圖（交卷後顯示） -->
+    <section id="resultView" class="hidden space-y-6">
+      <!-- 總分摘要卡 -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 sm:p-7">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-5 pb-6 border-b border-slate-100">
+          <div>
+            <div class="flex items-center gap-2.5 mb-2 flex-wrap">
+              <span id="passBadge" class="px-3 py-1 rounded-full text-xs sm:text-sm font-bold"></span>
+              <span id="submitReasonText" class="text-xs sm:text-sm text-slate-500"></span>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-bold text-slate-900">
+              測驗得分：<span id="finalScore" class="text-3xl sm:text-4xl text-indigo-600">0</span> <span class="text-base font-normal text-slate-500">/ 100 分</span>
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-500 mt-1">合格標準：70 分（每題 2 分，共 50 題）</p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2.5">
+            <button
+              type="button"
+              onclick="startNewExam()"
+              class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm transition cursor-pointer"
+            >
+              重新抽題／開始新測驗
+            </button>
+          </div>
+        </div>
+
+        <!-- 答對／答錯／未答統計 -->
+        <div class="grid grid-cols-3 gap-3 sm:gap-5 pt-5 text-center">
+          <div class="rounded-xl bg-emerald-50 border border-emerald-200 p-3 sm:p-4">
+            <div class="text-xs text-emerald-700 font-medium">答對題數</div>
+            <div id="statCorrect" class="text-xl sm:text-2xl font-bold text-emerald-700 mt-1">0</div>
+          </div>
+          <div class="rounded-xl bg-rose-50 border border-rose-200 p-3 sm:p-4">
+            <div class="text-xs text-rose-700 font-medium">答錯題數</div>
+            <div id="statWrong" class="text-xl sm:text-2xl font-bold text-rose-700 mt-1">0</div>
+          </div>
+          <div class="rounded-xl bg-slate-100 border border-slate-200 p-3 sm:p-4">
+            <div class="text-xs text-slate-600 font-medium">未作答題數</div>
+            <div id="statUnanswered" class="text-xl sm:text-2xl font-bold text-slate-700 mt-1">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 篩選列 -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h3 class="text-base sm:text-lg font-bold text-slate-900">逐題答案與詳細解析</h3>
+        <div class="inline-flex rounded-xl bg-white p-1 border border-slate-200 shadow-xs">
+          <button
+            id="filterAllBtn"
+            type="button"
+            onclick="setReviewFilter('all')"
+            class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-indigo-600 text-white transition cursor-pointer"
+          >
+            全部題目（50）
+          </button>
+          <button
+            id="filterIncorrectBtn"
+            type="button"
+            onclick="setReviewFilter('incorrect')"
+            class="px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer"
+          >
+            只看錯題／未答題
+          </button>
+        </div>
+      </div>
+
+      <!-- 逐題解析容器 -->
+      <div id="reviewList" class="space-y-4"></div>
+    </section>
+  </main>
+
+  <!-- 底部固定操作列（作答中顯示） -->
+  <footer id="bottomActionBar" class="fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur border-t border-slate-200 shadow-lg">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2">
+      <button
+        id="prevQuestionBtn"
+        type="button"
+        onclick="goToQuestion(currentIndex - 1)"
+        class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:pointer-events-none text-slate-800 font-bold text-xs sm:text-sm transition cursor-pointer"
+      >
+        ← 上一題
+      </button>
+
+      <div class="hidden sm:flex items-center gap-2">
+        <button
+          type="button"
+          onclick="requestRestartExam()"
+          class="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-xs transition cursor-pointer"
+        >
+          重新抽題
+        </button>
+        <button
+          type="button"
+          onclick="requestSubmitExam()"
+          class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs sm:text-sm transition cursor-pointer"
+        >
+          交卷算分
+        </button>
+      </div>
+
+      <button
+        id="nextQuestionBtn"
+        type="button"
+        onclick="goToQuestion(currentIndex + 1)"
+        class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:pointer-events-none text-white font-bold text-xs sm:text-sm transition cursor-pointer"
+      >
+        下一題 →
+      </button>
+    </div>
+  </footer>
+
+  <script>
+    /**
+     * 完整 AI 認證題庫（第一章 36 題 + 第二章 36 題 + 第三章 54 題 = 共 126 題，完整收錄附件所有題目）
+     * 每一題包含：id, chapter, question, options (4 個), answerIndex (0~3), explanation
+     */
+    const QUESTION_BANK = [
+      // ==================== 第一章：AI 發展歷程與生態系（1-01 ~ 36） ====================
+      { id: "1-01", chapter: "第一章：AI 發展歷程與生態系", question: "科學家在 1950 年代提出了一種測試機器是否具智慧的方式：若機器所表現的行為無法辨識出其身分，則稱這台機器具有智慧。此測試的名稱為下列哪一項？", options: ["圖靈（Turing）測試", "歐拉（Euler）測試", "高斯（Gauss）測試", "范紐曼（Von Neumann）測試"], answerIndex: 0, explanation: "1950 年由艾倫·圖靈（Alan Turing）提出「圖靈測試」，用來評估機器是否能展現與人類難以區分的智慧行為。" },
+      { id: "1-02", chapter: "第一章：AI 發展歷程與生態系", question: "在 1980 年代，名為專家系統的人工智慧程序開始被許多公司所採用。請問專家系統的主要概念為下列哪一項？", options: ["模仿專家對特定的問題進行學習的系統，主要元件為機器學習模組", "針對特定專業領域的問題進行回答，主要元件為知識庫與專家系統的規則", "能夠比專家表現更好的人工智慧，主要元件為機器學習模組與推理機", "針對廣泛領域的問題進行回答的人工智慧，主要元件為知識庫與機器學習模組"], answerIndex: 1, explanation: "專家系統透過將人類專家的領域知識整理成「知識庫」與「推論規則」，針對特定專業領域問題提供解答。" },
+      { id: "1-03", chapter: "第一章：AI 發展歷程與生態系", question: "電腦科學家對人工智慧的智慧等級進行了數個分類。其中，若人工智慧能夠達到模仿人類解決特定問題的功能，則此人工智慧屬於下列哪一項？", options: ["強人工智慧", "弱人工智慧", "混合式人工智慧", "仿生式人工智慧"], answerIndex: 1, explanation: "弱人工智慧（Narrow AI / ANI）專注於模仿人類解決特定領域或單一任務的問題，是目前主流的 AI 應用。" },
+      { id: "1-04", chapter: "第一章：AI 發展歷程與生態系", question: "由於機器學習需要大量的訓練資料來訓練其模型，因此收集資料是一件非常重要的事情。下列哪一項是可以讓我們方便收集大量資料的技術？", options: ["支援複雜運算的硬體", "雲端服務及網際網路的普及", "雲端軟體技術的進步", "人工智慧理論的突破"], answerIndex: 1, explanation: "網際網路與雲端服務的普及，讓數位行為、感測器與平台數據得以大量累積與彙整。" },
+      { id: "1-05", chapter: "第一章：AI 發展歷程與生態系", question: "下列哪一項可以讓模型更快速地處理大量資料？", options: ["具有快速處理資料的硬體", "網際網路的發達", "資料來源的多樣性", "資料庫技術的進步"], answerIndex: 0, explanation: "具備強大平行運算能力的硬體（如 GPU / TPU）能大幅加速深度學習與大量資料的訓練與推論速度。" },
+      { id: "1-06", chapter: "第一章：AI 發展歷程與生態系", question: "現代所稱的人工智慧其實是由許多計算技術所組成的統稱。下列哪一項不屬於人工智慧領域中知名的計算技術？", options: ["機器學習（Machine Learning）", "演化計算（Evolutionary Computation）", "資料探勘（Data Mining）", "雲端運算（Cloud Computing）"], answerIndex: 3, explanation: "雲端運算是一種透過網路提供共享運算資源的基礎架構，不屬於 AI 演算法／計算技術範疇。" },
+      { id: "1-07", chapter: "第一章：AI 發展歷程與生態系", question: "下列哪一項對深度學習模型的敘述是錯誤的？", options: ["深度學習是由許多神經元所組成", "深度學習主要的學習任務就是在學習神經網路要有幾層", "深度學習可以執行分類任務", "深度學習可以執行預測任務"], answerIndex: 1, explanation: "深度學習訓練的核心在於調整網路「權重（Weights）」以擷取有效特徵，而非僅學習網路要有幾層。" },
+      { id: "1-08", chapter: "第一章：AI 發展歷程與生態系", question: "深度學習模型通常使用下列哪一項結構？", options: ["二次方程", "決策樹（Decision Tree）", "神經網路", "支持向量機（SVM）"], answerIndex: 2, explanation: "深度學習是以多層人工神經網路（Deep Neural Networks）為核心結構的模型。" },
+      { id: "1-09", chapter: "第一章：AI 發展歷程與生態系", question: "1970 年代初，人工智慧首次遇到瓶頸，很多當代最厲害的人工智慧都只能解決某些問題中最簡單的部分，使得許多人對於人工智慧的成效感到失望。其原因不包含下列哪一項？", options: ["基礎理論的不完備", "許多問題的計算複雜度成指數成長", "許多倫理道德的問題讓大家懼怕人工智慧", "硬體計算能力不夠強"], answerIndex: 2, explanation: "1970 年代初的 AI 瓶頸主要源於硬體算力不足、演算法／理論限制與組合爆炸，並非倫理道德恐懼。" },
+      { id: "1-10", chapter: "第一章：AI 發展歷程與生態系", question: "電腦科學家對人工智慧的智慧等級進行了數個分類。其中，若人工智慧能夠達到與人具有相同的自主能力，也就是喜怒哀樂的能力，則此人工智慧屬於下列哪一項？", options: ["強人工智慧", "弱人工智慧", "混合式人工智慧", "仿生式人工智慧"], answerIndex: 0, explanation: "強人工智慧（AGI / 通用人工智慧）指具備類似人類的全面認知、自主意識與情感能力的智慧體。" },
+      { id: "1-11", chapter: "第一章：AI 發展歷程與生態系", question: "根據不同的服務，雲端運算分成 IaaS（Infrastructure as a Service）、SaaS（Software as a Service）、PaaS（Platform as a Service）。請問 Google 的線上文件協作屬於下列哪一種？", options: ["IaaS（Infrastructure as a Service）", "SaaS（Software as a Service）", "PaaS（Platform as a Service）", "IaaS、SaaS、PaaS 皆有"], answerIndex: 1, explanation: "Google 線上文件透過瀏覽器直接提供完整應用軟體服務，屬於 SaaS（軟體即服務）。" },
+      { id: "1-12", chapter: "第一章：AI 發展歷程與生態系", question: "Amazon EC2 藉由提供 Web 服務的方式讓使用者可以彈性地執行自己的 Amazon 機器映像檔，並在這個虛擬機器上運行任何想要的軟體或應用程式。請問此種雲端服務屬於下列哪一項？", options: ["IaaS（Infrastructure as a Service）", "SaaS（Software as a Service）", "PaaS（Platform as a Service）", "IaaS、SaaS、PaaS 皆有"], answerIndex: 0, explanation: "Amazon EC2 出租虛擬主機、運算與網路等底層基礎設施資源，屬於 IaaS（基礎設施即服務）。" },
+      { id: "1-13", chapter: "第一章：AI 發展歷程與生態系", question: "在 Google Cloud Platform（GCP）上 Google APP Engine 的環境中，使得使用者不需要維護伺服器，只需將網路應用程式上傳，其他使用者即可使用該應用程式提供之服務。Google APP Engine 屬於下列哪一項？", options: ["IaaS（Infrastructure as a Service）", "SaaS（Software as a Service）", "PaaS（Platform as a Service）", "IaaS、SaaS、PaaS 皆有"], answerIndex: 2, explanation: "Google App Engine 提供開發與執行應用程式的平台環境，開發者免管底層伺服器，屬於 PaaS（平台即服務）。" },
+      { id: "1-14", chapter: "第一章：AI 發展歷程與生態系", question: "某公司在創立初期由於成本因素，選擇了 Google Cloud Platform（GCP）來建立該公司的系統架構，並且部署該公司的服務在其上進行營運。請問，Google Cloud Platform 屬於下列哪一種？", options: ["公有雲（Public Cloud）", "私有雲（Private Cloud）", "社群雲（Community Cloud）", "混合雲（Hybrid Cloud）"], answerIndex: 0, explanation: "GCP 由雲端服務商建置並對外提供大眾租用，屬於公有雲（Public Cloud）。" },
+      { id: "1-15", chapter: "第一章：AI 發展歷程與生態系", question: "許多學校單位自行擁有機房並且架設自己的雲端平台，且具有自己的資訊管理人員來管理。為了因應校內學生以及職員辦公的需要，這種雲端平台提供了相對應的服務，請問這種作法屬於下列哪一種？", options: ["公有雲（Public Cloud）", "私有雲（Private Cloud）", "社群雲（Community Cloud）", "混合雲（Hybrid Cloud）"], answerIndex: 1, explanation: "專供單一組織或機構內部自行建置、管理與使用的雲端環境稱為私有雲（Private Cloud）。" },
+      { id: "1-16", chapter: "第一章：AI 發展歷程與生態系", question: "許多大的公司有自己的機房，並在其機房架設雲端平台來進行對內或對外的服務的營運。另外，同時也租用了類似 Google Cloud Platform（GCP）的雲端系統來應付需求增加時的流量。請問此種架構屬於下列哪一種？", options: ["公有雲（Public Cloud）", "私有雲（Private Cloud）", "社群雲（Community Cloud）", "混合雲（Hybrid Cloud）"], answerIndex: 3, explanation: "結合自有私有雲與外部公有雲的架構，兼顧安全與彈性擴充，稱為混合雲（Hybrid Cloud）。" },
+      { id: "1-17", chapter: "第一章：AI 發展歷程與生態系", question: "雲端運算技術能將資源（CPU、硬體、記憶體、機器）自由且彈性地依照使用者需求分配。使用者可要求 10個運算單元，每個運算單元各是 2 組 CPU、38G 的 RAM 及 2T 的硬碟，請問下列哪一項技術可達成該功能？", options: ["虛擬化技術", "分散式運算技術", "最佳化技術", "互動式技術"], answerIndex: 0, explanation: "虛擬化技術能將實體硬體資源抽象化並彈性切分成多個獨立虛擬運算單元。" },
+      { id: "1-18", chapter: "第一章：AI 發展歷程與生態系", question: "下列哪一個系統在 1997 年擊敗西洋棋世界冠軍卡斯帕洛夫？", options: ["Deep Blue", "AlphaGo", "Watson", "Project Debater"], answerIndex: 0, explanation: "IBM 的「深藍（Deep Blue）」於 1997 年在西洋棋賽中擊敗世界冠軍 Garry Kasparov。" },
+      { id: "1-19", chapter: "第一章：AI 發展歷程與生態系", question: "大數據這個概念被提出時，專家學者普遍認為目前資料有著 4V 的特性。請問「Facebook 需要從每天產生的 130TB 的 log 中作分析」現象是 4V 中的下列哪一種？", options: ["Volume", "Velocity", "Variety", "Veracity"], answerIndex: 0, explanation: "每天產生 130TB 的龐大資料量強調的是資料規模大，屬於 Volume（大量）。" },
+      { id: "1-20", chapter: "第一章：AI 發展歷程與生態系", question: "大數據這個概念被提出時，專家學者普遍認為目前資料有著 4V 的特性。請問「Google 平均每秒處理 40000 個查詢」現象是 4V 中的下列哪一種？", options: ["Volume", "Velocity", "Variety", "Veracity"], answerIndex: 1, explanation: "每秒處理大量即時查詢強調資料產生與處理的速度快，屬於 Velocity（高速）。" },
+      { id: "1-21", chapter: "第一章：AI 發展歷程與生態系", question: "大數據這個概念被提出時，專家學者普遍認為目前資料有著 4V 的特性。請問「Instagram 要從文字、照片、影片、限時動態中分析目前大家最關注的主題」現象是 4V 中的下列哪一種？", options: ["Volume", "Velocity", "Variety", "Veracity"], answerIndex: 2, explanation: "涵蓋文字、照片、影片與動態等多種格式與型態，屬於 Variety（多樣性）。" },
+      { id: "1-22", chapter: "第一章：AI 發展歷程與生態系", question: "問答機器人屬於下列哪一種人工智慧的應用領域？", options: ["影像處理", "自然語言處理（NLP）", "數據處理", "圖像處理"], answerIndex: 1, explanation: "問答機器人涉及理解人類自然語言提問並產生語意回應，屬於自然語言處理（NLP）領域。" },
+      { id: "1-23", chapter: "第一章：AI 發展歷程與生態系", question: "在人工智慧領域中，「監督學習（Supervised Learning）」是指下列哪一項？", options: ["無需標註數據的學習", "使用已標註數據的學習", "在真實環境中學習", "無需數據的學習"], answerIndex: 1, explanation: "監督學習透過具備輸入特徵與對應正確標籤（Label）的訓練資料進行模型學習。" },
+      { id: "1-24", chapter: "第一章：AI 發展歷程與生態系", question: "AlphaGo 在圍棋比賽中成功擊敗人類主要是奠基於下列哪一種技術的突破？", options: ["支持向量機（SVM）", "深度強化學習", "迴歸分析", "知識圖譜"], answerIndex: 1, explanation: "AlphaGo 結合深度神經網路與強化學習（蒙地卡羅樹搜尋與自我對弈），在圍棋領域取得重大突破。" },
+      { id: "1-25", chapter: "第一章：AI 發展歷程與生態系", question: "下列哪一個系統曾與節目主持人進行現場辯論比賽？", options: ["Deep Blue", "AlphaGo", "Watson", "Project Debater"], answerIndex: 3, explanation: "IBM Project Debater 是能針對複雜議題進行即時論點整理與現場辯論的 AI 系統。" },
+      { id: "1-26", chapter: "第一章：AI 發展歷程與生態系", question: "知名的深度學習框架 TensorFlow 是由下列哪一個公司推出？", options: ["Microsoft", "Meta", "OpenAI", "Google"], answerIndex: 3, explanation: "TensorFlow 是由 Google Brain 團隊開發並開源的深度學習框架。" },
+      { id: "1-27", chapter: "第一章：AI 發展歷程與生態系", question: "在自然語言處理（NLP）中，下列哪一個技術用於讓計算機理解文本的含義？", options: ["物聯網", "詞嵌入", "錯誤檢查", "程式碼優化"], answerIndex: 1, explanation: "詞嵌入（Word Embedding）將詞彙映射至向量空間，使語意相近的詞在向量空間中距離較近。" },
+      { id: "1-28", chapter: "第一章：AI 發展歷程與生態系", question: "GPT-3 是由下列哪一個公司開發？", options: ["Microsoft", "Meta", "OpenAI", "Google"], answerIndex: 2, explanation: "GPT-3 是由 OpenAI 推出的大型語言模型。" },
+      { id: "1-29", chapter: "第一章：AI 發展歷程與生態系", question: "現在有許多企業開始進行與人工智慧有關的業務。籌組企業人工智慧團隊時，最典型的角色不包含下列哪一項？", options: ["機器學習科學家（Machine Learning Scientist）", "資料科學家（Data Scientist）", "銷售人員（Sales）", "軟體工程師（Software Engineer）"], answerIndex: 2, explanation: "AI 技術團隊核心角色通常包含資料科學家、機器學習工程師／科學家與軟體工程師，銷售人員屬於業務部門。" },
+      { id: "1-30", chapter: "第一章：AI 發展歷程與生態系", question: "人工智慧在醫療診斷中最常見的應用是下列哪一項？", options: ["病歷管理", "影像識別", "財務分析", "知識管理"], answerIndex: 1, explanation: "AI 在醫療診斷上常透過影像識別協助判讀 X 光、MRI、CT 等醫學影像與病灶。" },
+      { id: "1-31", chapter: "第一章：AI 發展歷程與生態系", question: "自動駕駛技術最依賴下列哪一種AI技術？", options: ["自然語言處理（NLP）", "電腦視覺", "機器學習", "量子計算"], answerIndex: 1, explanation: "自動駕駛高度依賴電腦視覺辨識車道線、交通號誌、行人與障礙物。" },
+      { id: "1-32", chapter: "第一章：AI 發展歷程與生態系", question: "下列哪一項不是 AI 技術對金融行業的幫助？", options: ["縮短交易時間", "提高風險評估精度", "自動化報告生成", "增加資金流動"], answerIndex: 3, explanation: "AI 可協助風險評估、詐欺偵測、自動化報告與交易執行，但不會直接創造或增加總資金流動。" },
+      { id: "1-33", chapter: "第一章：AI 發展歷程與生態系", question: "「黑箱」問題在人工智慧模型中指的是下列哪一項？", options: ["數據隱私與保護的挑戰", "模型的運作和決策過程缺乏可解釋性和透明度", "訓練數據的品質不足以支持模型有效學習", "計算資源不足以進行充分的模型訓練"], answerIndex: 1, explanation: "複雜深度學習模型內部參數龐大，決策推理不易被人類直接理解，稱為黑箱（Black Box）問題。" },
+      { id: "1-34", chapter: "第一章：AI 發展歷程與生態系", question: "在人工智慧的倫理討論中，下列哪一項為最重要的議題之一？", options: ["如何提升計算效率", "如何有效保護用戶的隱私", "如何增加模型的複雜性", "如何擴展人工智慧的應用領域"], answerIndex: 1, explanation: "個人資料蒐集、隱私保護、演算法公平性與安全責任是 AI 倫理的核心議題。" },
+      { id: "1-35", chapter: "第一章：AI 發展歷程與生態系", question: "在人工智慧的發展歷程中，「AI 冬天」是指下列哪一項時期？", options: ["投資減少和對技術期望過高導致的冷淡期", "重大技術突破後的快速發展期", "AI 技術廣泛應用的興起時期", "僅限於學術界的研究增長期"], answerIndex: 0, explanation: "「AI 冬天」指因早期期望過高、瓶頸未解而導致資金縮減與研究熱度下降的低潮期。" },
+      { id: "1-36", chapter: "第一章：AI 發展歷程與生態系", question: "在 AI 系統的應用中，「可解釋性」最主要是指下列哪一項？", options: ["系統在執行任務時的運行速度與效率", "模型預測結果的準確性和可靠性", "用戶能夠理解 AI 模型作出決策的過程", "數據的可用性和擷取難易程度"], answerIndex: 2, explanation: "可解釋性（Explainability）指讓開發者、使用者或監管者理解 AI 得出特定結論的原因與依據。" },
+
+      // ==================== 第二章：AI 產業應用與演算法（2-1 ~ 2-36） ====================
+      { id: "2-01", chapter: "第二章：AI 產業應用與演算法", question: "請問下列哪一種不為常見電腦視覺技術的應用之一？", options: ["停車場用的車牌辨識系統", "YouTube的自動字幕產生器", "無人商店自動結帳", "iPhone上的Face ID"], answerIndex: 1, explanation: "YouTube 自動字幕產生器主要依賴語音辨識（ASR）與自然語言處理，而非電腦視覺。" },
+      { id: "2-02", chapter: "第二章：AI 產業應用與演算法", question: "請問下列哪一項不為目前人工智慧應用在醫療領域上的案例？", options: ["接收醫療用的各種感應器的訊息來重建醫療影像", "解讀病人的X光片判斷是否罹患肺炎", "人工智慧系統給出癌症判斷以及治療建議", "供醫生參考之雲端用藥系統"], answerIndex: 3, explanation: "單純提供醫師查詢參考的雲端用藥系統屬於一般資訊查詢工具，題目設定此項不屬本題所指 AI 醫療應用案例。" },
+      { id: "2-03", chapter: "第二章：AI 產業應用與演算法", question: "在自動駕駛中，下列哪一項演算法最常用於檢測道路上的行人？", options: ["支持向量機（SVM）", "卷積神經網路（CNN）", "遞迴神經網路（RNN）", "K-最近鄰（KNN）"], answerIndex: 1, explanation: "卷積神經網路（CNN）擅長提取二維影像空間特徵，常用於行人、車輛與物體偵測。" },
+      { id: "2-04", chapter: "第二章：AI 產業應用與演算法", question: "在自動駕駛領域中，深度學習的卷積神經網路（CNN）主要用於下列哪一項？", options: ["自動生成路徑規劃", "分析和辨識攝影機拍攝的圖像", "處理語音命令", "優化燃料消耗"], answerIndex: 1, explanation: "CNN 主要用於視覺感知，分析與辨識車載攝影機擷取的影像畫面。" },
+      { id: "2-05", chapter: "第二章：AI 產業應用與演算法", question: "AI在醫療診斷中應用廣泛，其中深度學習的「過擬合」（Overfitting）問題對產業有下列哪一項潛在影響？", options: ["提高模型對新型疾病的應對能力", "降低模型對未見數據的泛化能力，導致診斷錯誤", "增強模型對新型疾病的應對能力", "提高數據處理速度"], answerIndex: 1, explanation: "過擬合會使模型過度死記訓練資料細節，面對新的病患或未見資料時泛化能力下降，容易誤判。" },
+      { id: "2-06", chapter: "第二章：AI 產業應用與演算法", question: "請問下列的技術中，下列哪一項不為自駕車中重要研究議題之一？", options: ["各種感測器技術", "交通符號辨識", "自駕車定位系統", "物體偵測技術"], answerIndex: 2, explanation: "依本題庫解答，自駕車感知與辨識重點包含感測器、交通號誌辨識與物體偵測，此題答案為 C。" },
+      { id: "2-07", chapter: "第二章：AI 產業應用與演算法", question: "在AI產業中，下列哪一項技術領域最常用來進行圖像識別？", options: ["強化學習（RL）", "自然語言處理（NLP）", "卷積神經網路（CNN）", "生成對抗網路（GAN）"], answerIndex: 2, explanation: "卷積神經網路（CNN）是圖像識別與電腦視覺領域最經典且核心的架構。" },
+      { id: "2-08", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一種技術是現代語音助理（如Siri和Alexa）背後的核心技術？", options: ["支持向量機（SVM）", "自然語言處理（NLP）", "強化學習（RL）", "深度強化學習（DRL）"], answerIndex: 1, explanation: "語音助理需解析語意、理解指令並生成自然語言回應，核心涉及自然語言處理（NLP）。" },
+      { id: "2-09", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一種神經網路結構最常用於自然語言處理（NLP）任務？", options: ["卷積神經網路（CNN）", "遞迴神經網路（RNN）", "自組織映射（SOM）", "支持向量機（SVM）"], answerIndex: 1, explanation: "傳統序列 NLP 任務常使用遞迴神經網路（RNN）及其變體（如 LSTM、GRU）處理前後文序列。" },
+      { id: "2-10", chapter: "第二章：AI 產業應用與演算法", question: "自注意力機制在下列哪一項神經網路架構中產生關鍵作用？", options: ["卷積神經網路（CNN）", "遞迴神經網路（RNN）", "Transformer", "生成對抗網路（GAN）"], answerIndex: 2, explanation: "自注意力機制（Self-Attention）是 Transformer 架構的核心，能並行計算序列中各詞彙的關聯。" },
+      { id: "2-11", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一項AI技術最適合用於圖像生成任務？", options: ["決策樹（Decision Tree）", "生成對抗網路（GAN）", "支持向量機（SVM）", "強化學習（RL）"], answerIndex: 1, explanation: "生成對抗網路（GAN）透過生成器與判別器對抗學習，廣泛應用於高擬真圖像生成。" },
+      { id: "2-12", chapter: "第二章：AI 產業應用與演算法", question: "AI產業中，下列哪一種學習模式更適合用於解決無標籤數據的問題？", options: ["監督學習（Supervised Learning）", "半監督學習", "無監督學習（Unsupervised Learning）", "強化學習（RL）"], answerIndex: 2, explanation: "無監督學習直接在缺乏人工標註標籤的資料中尋找結構、分群或潛在分布。" },
+      { id: "2-13", chapter: "第二章：AI 產業應用與演算法", question: "AI 在醫療影像中的應用，通常使用下列哪一種演算法來進行醫學圖像的分割？", options: ["K-均值聚類", "U-Net", "隨機森林（Random Forest）", "主成分分析（PCA）"], answerIndex: 1, explanation: "U-Net 採用對稱編碼器-解碼器與跳跃連接（Skip Connection），非常適合醫學影像語意分割。" },
+      { id: "2-14", chapter: "第二章：AI 產業應用與演算法", question: "隨著人工智慧（AI）與物聯網（IoT）發展，兩者匯流進化成 AIoT。請問 IoT 的主要功能不包含下列哪一項？", options: ["資料感測", "資料分析", "資料收集與彙整", "資料傳輸"], answerIndex: 1, explanation: "物聯網（IoT）主要負責感測、收集與傳輸資料，深層資料分析與智慧決策主要由 AI 承擔。" },
+      { id: "2-15", chapter: "第二章：AI 產業應用與演算法", question: "請問人工智慧（AI）部分在 AIoT 所扮演的角色與功能不含下列哪一項？", options: ["資料前處理", "執行機器學習演算法", "執行梯度下降的演算法", "資料傳輸與感測"], answerIndex: 3, explanation: "資料傳輸與感測屬於物聯網（IoT）硬體感測與網路層功能，非 AI 模型演算法本身的角色。" },
+      { id: "2-16", chapter: "第二章：AI 產業應用與演算法", question: "AI 產業中的邊緣計算技術主要解決下列哪一項問題？", options: ["資料存儲", "資料傳輸頻寬和延遲", "數據清洗", "模型複雜性數據前處理"], answerIndex: 1, explanation: "邊緣計算在靠近資料來源的終端或邊緣節點進行運算，可減少上傳雲端的頻寬消耗與網路延遲。" },
+      { id: "2-17", chapter: "第二章：AI 產業應用與演算法", question: "智慧製造總稱具有資訊自感知、自決策、自執行等功能的先進製造過程、系統與模式。請問智慧製造中的關鍵技術不包含下列哪一項？", options: ["人工智慧", "雲端計算無線傳輸技術", "物聯網感測技術", "自然語言技術"], answerIndex: 3, explanation: "智慧製造核心仰賴 AI、物聯網感測、雲端／邊緣運算與通訊技術，自然語言技術非其主要關鍵技術。" },
+      { id: "2-18", chapter: "第二章：AI 產業應用與演算法", question: "在圖像識別任務中，資料增強的目的是下列哪一項？", options: ["提高模型的推理速度", "增強模型的魯棒性", "減少模型的參數", "增加模型的容量"], answerIndex: 1, explanation: "資料增強（Data Augmentation）透過翻轉、旋轉、裁切等擴充訓練樣本，提升模型對變化的魯棒性。" },
+      { id: "2-19", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一種方法最適合用於對時間序列資料進行預測？", options: ["卷積神經網路（CNN）", "支持向量機（SVM）", "遞迴神經網路（RNN）", "隨機森林（Random Forest）"], answerIndex: 2, explanation: "遞迴神經網路（RNN）具隱藏狀態可傳遞歷史資訊，適合處理具時間先後順序的序列資料。" },
+      { id: "2-20", chapter: "第二章：AI 產業應用與演算法", question: "AI產業中，下列哪一項技術最適合用來分析時序數據？", options: ["卷積神經網路（CNN）", "長短期記憶網路（LSTM）", "生成對抗網路（GAN）", "支持向量機（SVM）"], answerIndex: 1, explanation: "長短期記憶網路（LSTM）透過閘門機制有效捕捉時序資料中的長短期趨勢與依賴關係。" },
+      { id: "2-21", chapter: "第二章：AI 產業應用與演算法", question: "在自然語言處理（NLP）任務中，BERT 模型的主要創新是下列哪一項？", options: ["使用生成對抗網路（GAN）", "引入了雙向的 Transformer 結構", "基於卷積的文本生成", "強化學習（RL）技術"], answerIndex: 1, explanation: "BERT 採用雙向 Transformer 編碼器，能同時融合詞彙左側與右側的上下文語境資訊。" },
+      { id: "2-22", chapter: "第二章：AI 產業應用與演算法", question: "在 AI 應用中，下列哪一項場景最適合使用「強化學習」（RL）技術？", options: ["自然語言處理（NLP）和文本生成", "複雜的決策過程如遊戲 AI 或自動駕駛", "圖像分類和物體檢測", "無監督學習（Unsupervised Learning）的數據聚類"], answerIndex: 1, explanation: "強化學習透過與環境互動、依據獎勵訊號學習策略，最適合遊戲 AI、機器人與自動駕駛決策。" },
+      { id: "2-23", chapter: "第二章：AI 產業應用與演算法", question: "在 AI 產業中，下列哪一項技術最適用在改變醫療環境的圖像診斷？", options: ["卷積神經網路（CNN）", "支持向量機（SVM）", "強化學習（RL）", "自然語言處理（NLP）"], answerIndex: 0, explanation: "卷積神經網路（CNN）在醫學影像特徵提取與病灶辨識上表現突出。" },
+      { id: "2-24", chapter: "第二章：AI 產業應用與演算法", question: "AI 在醫療影像分析中的主要應用是下列哪一項？", options: ["生成醫療報告", "自動識別異常病變", "提供個性化治療建議", "減少醫生工作量"], answerIndex: 1, explanation: "醫療影像 AI 主要協助自動識別或標記影像中的異常病變區域，輔助醫師判讀。" },
+      { id: "2-25", chapter: "第二章：AI 產業應用與演算法", question: "在聊天機器人的設計中，下列哪一項技術最常用於理解用戶的意圖？", options: ["自然語言處理（NLP）", "卷積神經網路（CNN）", "隨機森林（Random Forest）", "生成對抗網路（GAN）"], answerIndex: 0, explanation: "聊天機器人需透過自然語言處理（NLP）進行分詞、語意分析與意圖辨識（Intent Recognition）。" },
+      { id: "2-26", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一項描述 AI 在製造業實現預測性維護的方式？", options: ["增加設備數量", "分析運行數據預測設備故障", "減少工人的工作時間", "提高產品的設計質量"], answerIndex: 1, explanation: "預測性維護透過分析設備感測器的溫度、震動與電流等運行數據，在故障發生前發出預警。" },
+      { id: "2-27", chapter: "第二章：AI 產業應用與演算法", question: "在社交媒體平台上，AI 最常用於下列哪一種功能？", options: ["提高用戶數", "內容推薦系統", "提升硬體的計算效能", "社交功能的設計"], answerIndex: 1, explanation: "社群平台常運用 AI 推薦演算法，依使用者互動與興趣推送貼文、短影音或廣告。" },
+      { id: "2-28", chapter: "第二章：AI 產業應用與演算法", question: "在 AI 驅動的自動化客服系統中，下列哪一種技術用於實現對用戶問題的智慧應答？", options: ["支持向量機（SVM）", "Transformer", "K-最近鄰（KNN）", "卷積神經網路（CNN）"], answerIndex: 1, explanation: "Transformer 架構具備強大的語意理解與文本生成能力，廣泛用於智慧客服問答系統。" },
+      { id: "2-29", chapter: "第二章：AI 產業應用與演算法", question: "在 AI 中，注意力機制的主要作用是下列哪一項？", options: ["提高模型的可解釋性", "強調輸入序列的關鍵部分", "降低模型的複雜度", "增強資料的稀疏性"], answerIndex: 1, explanation: "注意力機制會針對輸入資訊賦予不同權重，讓模型聚焦於與當前任務最相關的關鍵部分。" },
+      { id: "2-30", chapter: "第二章：AI 產業應用與演算法", question: "在影像處理領域，常用於邊緣檢測的演算法是下列哪一項？", options: ["Canny 演算法", "K-Means 聚類", "支持向量機（SVM）", "遞迴神經網路（RNN）"], answerIndex: 0, explanation: "Canny 邊緣檢測演算法是影像處理中經典的多階段邊緣提取方法。" },
+      { id: "2-31", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一項為長短期記憶網路（LSTM）在時間序列預測中的表現通常優於傳統遞迴網路（RNN）的原因？", options: ["長短期記憶網路（LSTM）能夠有效處理長期依賴問題", "長短期記憶網路（LSTM）需要的參數更少", "長短期記憶網路（LSTM）不需要進行反向傳播", "長短期記憶網路（LSTM）適合處理靜態數據"], answerIndex: 0, explanation: "LSTM 透過遺忘閘、輸入閘與輸出閘控制資訊流，能有效缓解梯度消失並掌握長期依賴關係。" },
+      { id: "2-32", chapter: "第二章：AI 產業應用與演算法", question: "在自動駕駛技術中，激光雷達（LiDAR）數據分析的主要目的是下列哪一項？", options: ["增加路徑選擇", "獲取三維環境信息", "優化燃料消耗", "減少計算需求"], answerIndex: 1, explanation: "光達（LiDAR）透過雷射測距建立周圍物體的 3D 點雲模型，精準獲取三維空間環境資訊。" },
+      { id: "2-33", chapter: "第二章：AI 產業應用與演算法", question: "下列哪一種 AI 技術用於透過歷史交易記錄預測股票市場的趨勢？", options: ["強化學習（RL）", "支持向量機（SVM）", "遞迴神經網路（RNN）", "決策樹（Decision Tree）"], answerIndex: 2, explanation: "股票歷史價格屬於時間序列資料，遞迴神經網路（RNN）可用於建模序列變化趨勢。" },
+      { id: "2-34", chapter: "第二章：AI 產業應用與演算法", question: "在影像監控系統中，深度學習的作用是下列哪一項？", options: ["簡化影像存儲", "及時偵測和行為分析", "降低影像保真度", "增加數據延遲"], answerIndex: 1, explanation: "深度學習可對監控畫面進行即時物件偵測、異常事件與行為分析，提升安防效率。" },
+      { id: "2-35", chapter: "第二章：AI 產業應用與演算法", question: "在數據預處理中，正規化技術的主要作用是下列哪一項？", options: ["減少數據集的大小", "將特徵縮放到相同範圍", "忽略異常值", "僅適用於分類任務"], answerIndex: 1, explanation: "正規化（Normalization）可將不同單位與量級的特徵縮放到相同尺度，有助於模型穩定收斂。" },
+      { id: "2-36", chapter: "第二章：AI 產業應用與演算法", question: "在物流管理中，AI 優化運輸路徑為下列哪一項？", options: ["隨機選擇運輸路徑", "透過分析交通數據和地理信息計算最佳路徑", "減少運輸的靈活性", "僅依賴固定的運輸計畫"], answerIndex: 1, explanation: "AI 結合交通路況、地理資訊與配送限制進行動態運算，找出省時或省成本的最佳路線。" },
+
+      // ==================== 第三章：生成式 AI（3-01 ~ 3-54） ====================
+      { id: "3-01", chapter: "第三章：生成式 AI", question: "關於生成式 AI 的敘述，下列哪一項錯誤？", options: ["生成式 AI 是透過學習大量數據來產生新數據的技術", "生成式 AI 常用的技術包括生成對抗網路（GAN）、長短期記憶（LSTM）和 Transformer 模型", "生成式 AI 僅能用於生成圖像數據，無法生成文本或音頻數據", "Transformer 模型是一種在生成式 AI 中常用的深度學習架構"], answerIndex: 2, explanation: "生成式 AI 可生成文本、圖像、音訊、影片與程式碼等多種模態內容，並非僅限於圖像。" },
+      { id: "3-02", chapter: "第三章：生成式 AI", question: "在生成對抗網路（GAN）的訓練過程中，生成器與判別器之間關係如何影響模型的學習效果，下列哪一項描述正確？", options: ["生成器和判別器相互獨立工作，不會相互影響", "生成器和判別器共同工作，共同提高模型的準確性", "生成器和判別器進行對抗，生成器試圖欺騙判別器，判別器則試圖辨識數據的真偽", "判別器會向生成器提供指引，判別器與生成器會彼此交換數據"], answerIndex: 2, explanation: "GAN 由生成器與判別器進行對抗訓練，生成器力求產出逼真樣本騙過判別器，判別器則致力區分真偽。" },
+      { id: "3-03", chapter: "第三章：生成式 AI", question: "關於池化層的敘述，下列哪一項錯誤？", options: ["抓取重要特徵，去掉不重要的部分", "提升運作效能", "多採用最小池化", "控制過擬合（Overfitting）"], answerIndex: 2, explanation: "池化層常見的是最大池化（Max Pooling）或平均池化（Average Pooling），而非多採用最小池化。" },
+      { id: "3-04", chapter: "第三章：生成式 AI", question: "下列哪一項不是分群演算法？", options: ["K-means 聚類", "Hierarchical", "Regress", "Density-Based"], answerIndex: 2, explanation: "K-means、階層式分群（Hierarchical）與密度分群（Density-Based）皆屬分群演算法；迴歸（Regression）屬預測／迴歸任務。" },
+      { id: "3-05", chapter: "第三章：生成式 AI", question: "關於長短期記憶網路（LSTM）的敘述，下列哪一項錯誤？", options: ["具有長短期記憶", "藉由輸入閘、輸出閘、遺忘閘控制資料是否輸入或輸出", "解決遞迴神經網路（RNN）沒有長期記憶的問題", "無法處理連續性資料"], answerIndex: 3, explanation: "LSTM 正是專為處理序列與連續性資料而設計，且能改善傳統 RNN 長期依賴學習困難的問題。" },
+      { id: "3-06", chapter: "第三章：生成式 AI", question: "下列哪一項為生成式 AI 在訓練過程中學習數據分佈？", options: ["訓練生成模型逼近數據分佈", "利用特徵提取", "運用資料增強技術", "透過卷積運算提高效率"], answerIndex: 0, explanation: "生成式 AI 訓練的本質是讓模型學習並逼近真實資料的機率分布，進而抽取新樣本。" },
+      { id: "3-07", chapter: "第三章：生成式 AI", question: "下列哪一項關於生成式 AI 的敘述正確？", options: ["生成式 AI 強調預測準確率（Accuracy）", "Transformer 是常見生成式 AI 模型的一種", "生成式 AI 只能從已看過的資料中選擇輸出", "著名的圍棋 AI AlphaGo 使用生成式 AI 來生成候選棋步"], answerIndex: 1, explanation: "Transformer 是現代生成式 AI（如 GPT 系列）的核心神經網路架構之一。" },
+      { id: "3-08", chapter: "第三章：生成式 AI", question: "下列哪一項不是生成式 AI 的相關技術？", options: ["長短期記憶網路（LSTM）", "生成對抗網路（GAN）", "自然語言處理（NLP）", "一次性密碼（OTP）"], answerIndex: 3, explanation: "一次性密碼（OTP）是身分驗證與資安機制，與生成式 AI 技術無關。" },
+      { id: "3-09", chapter: "第三章：生成式 AI", question: "在 CLIP 模型中，下列哪一項是生成式 AI 的目的？", options: ["將影像轉換為文本描述並進行檢索", "從文本生成相應的影像", "將生成輸入影像無縫顯示於真實數據", "生成人物辨察影像並進行放大"], answerIndex: 0, explanation: "依本題庫解答，CLIP 連結圖像與文本語意表徵，支援跨模態理解與檢索，本題正確答案為 A。" },
+      { id: "3-10", chapter: "第三章：生成式 AI", question: "下列哪一項描述說明生成式 AI 與傳統 AI 方法有何區別？", options: ["傳統式 AI 更關注生成新數據，而生成式 AI 更關注數據分類", "生成式 AI 能夠生成新的數據樣本，而傳統式 AI 主要用於數據分類或回歸", "傳統式 AI 主要用於無監督學習（Unsupervised Learning），而生成式 AI 主要用於監督式學習（Supervised Learning）", "生成式 AI只適用於處理結構化數據，而傳統 AI 適用於處理非結構化數據"], answerIndex: 1, explanation: "生成式 AI 重點在於生成新的資料樣本，傳統判別式 AI 則多用於分類、預測或迴歸。" },
+      { id: "3-11", chapter: "第三章：生成式 AI", question: "在生成對抗網路（GAN）中，生成器（Generator）的主要功能是哪一項？", options: ["判斷輸入數據是否為真實數據", "儲存並處理訓練數據", "生成類似於真實數據的假數據", "減少模型的損失函數數值"], answerIndex: 2, explanation: "生成器接收隨機雜訊或潛在向量，產出仿真的合成資料以欺騙判別器。" },
+      { id: "3-12", chapter: "第三章：生成式 AI", question: "下列哪一項是常用的生成式 AI 架構？", options: ["卷積神經網路（CNN）", "長短期記憶網路（LSTM）", "前饋神經網路（FF）", "生成對抗網路（GAN）"], answerIndex: 3, explanation: "生成對抗網路（GAN）是生成式 AI 中代表性的生成架構之一。" },
+      { id: "3-13", chapter: "第三章：生成式 AI", question: "下列哪一項是生成對抗網路（GAN）的基本構成？", options: ["生成器與判別器", "編碼器與解碼器", "變分自編碼器（VAE）", "自迴歸模型"], answerIndex: 0, explanation: "GAN 基本構成包含生成器（Generator）與判別器／鑑別器（Discriminator）。" },
+      { id: "3-14", chapter: "第三章：生成式 AI", question: "下列哪一項方法可以用來穩定生成對抗網路（GAN）的訓練？", options: ["使用較少的訓練數據", "減少判別器的層數", "使用批量正則化和調整學習率", "將生成器和判別器分開訓練"], answerIndex: 2, explanation: "適當使用正則化（如 Batch Normalization）與調整學習率有助於穩定 GAN 訓練過程。" },
+      { id: "3-15", chapter: "第三章：生成式 AI", question: "在處理影像生成任務時，下列哪一個模型結構通常更適合捕捉影像中的局部特徵？", options: ["Transformer", "卷積神經網路（CNN）", "圖形卷積網路（GCN）", "遞迴神經網路（RNN）"], answerIndex: 1, explanation: "卷積神經網路（CNN）透過局部感受野與權重共享，擅長捕捉影像中的局部空間特徵。" },
+      { id: "3-16", chapter: "第三章：生成式 AI", question: "請問自迴歸模型（AR）在生成數據時，是依照下列哪一項來生成？", options: ["隨機變量", "外部輸入", "前面的數據", "固定參數"], answerIndex: 2, explanation: "自迴歸模型（Autoregressive）會依據先前已生成或輸入的序列資料來預測下一個元素。" },
+      { id: "3-17", chapter: "第三章：生成式 AI", question: "請問自迴歸模型（AR）在生成式 AI 中的作用是下列哪一項？", options: ["用於生成序列數據", "用於圖像分類", "用於數據壓縮", "用於數據聚類"], answerIndex: 0, explanation: "自迴歸模型非常適合逐步生成序列資料，例如文字、語音或音樂音符序列。" },
+      { id: "3-18", chapter: "第三章：生成式 AI", question: "下列哪一項不是生成對抗網路（GAN）的變體？", options: ["DCGAN", "CycleGAN", "StyleGAN", "DecisionGAN"], answerIndex: 3, explanation: "DCGAN、CycleGAN 與 StyleGAN 皆為知名 GAN 變體，DecisionGAN 並非 GAN 的標準變體。" },
+      { id: "3-19", chapter: "第三章：生成式 AI", question: "請問 BERT 屬於 Transformer 的下列哪一項部分？", options: ["Encoder - 提取輸入文字特徵，並將其表示成向量形式輸出", "Decoder - 依輸入內容語意，生成適當的回應內容", "Self-attention - 一種輸入內容資訊提取機制，擅長完整提取上下文資訊", "Convolution - 一種圖片特徵提取機制，透過層層此種運算，可完整提取圖像由小至大的特徵"], answerIndex: 0, explanation: "BERT 採用 Transformer 的 Encoder 架構，擅長提取雙向上下文特徵並輸出向量表示。" },
+      { id: "3-20", chapter: "第三章：生成式 AI", question: "下列哪一種生成式 AI 模型使用編碼器-解碼器架構來學習數據集的潛在機率分佈？", options: ["生成對抗網路（GAN）", "大型語言模型（Large language models）", "變分自編碼器（VAE）", "Diffusion models"], answerIndex: 2, explanation: "變分自編碼器（VAE）包含編碼器與解碼器，透過機率潛在空間建模資料分布並生成新樣本。" },
+      { id: "3-21", chapter: "第三章：生成式 AI", question: "下列哪一個是變分自編碼器（VAE）的核心特徵？", options: ["使用對抗性損失來訓練", "將輸入數據映射到隱變量空間", "直接生成圖像標籤", "使用決策樹（Decision Tree）進行分類"], answerIndex: 1, explanation: "VAE 核心是將輸入資料映射到潛在變數（隱變量）空間的分佈，再由解碼器重建生成。" },
+      { id: "3-22", chapter: "第三章：生成式 AI", question: "下列哪一層在生成式 AI 架構中負責收集、準備和處理信息，並進行特徵提取？", options: ["Data processing layer", "Generative model layer", "Feedback and improvement layer", "Deployment and integration layer"], answerIndex: 0, explanation: "資料處理層（Data processing layer）負責資料收集、清理、準備與特徵提取。" },
+      { id: "3-23", chapter: "第三章：生成式 AI", question: "下列哪一種演算法常用於生成圖片？", options: ["K-means 聚類", "線性回歸", "深度森林", "自動編碼器"], answerIndex: 3, explanation: "自動編碼器（Autoencoder / VAE）等生成模型可用於影像重建與生成任務。" },
+      { id: "3-24", chapter: "第三章：生成式 AI", question: "在多模態技術中，下列哪一項不是實現跨模態內容理解與生成的關鍵要素？", options: ["融合來自不同模態的特徵表示", "利用深度學習模型處理單一模態數據", "透過注意力機制增強模型對關鍵資訊的聚焦", "建立不同模態之間的語意關聯"], answerIndex: 1, explanation: "跨模態理解與生成關鍵在於多模態特徵融合、語意對齊與注意力機制，僅處理單一模態無法達成跨模態。" },
+      { id: "3-25", chapter: "第三章：生成式 AI", question: "請問在 Diffusion Model 的訓練過程中，模型主要學習的是下列哪一項？", options: ["如何優化損失函數以減少噪聲", "添加噪聲的過程以及去噪的反向過程", "分類不同類型的數據", "減少生成過程中的偏差"], answerIndex: 1, explanation: "擴散模型（Diffusion Model）透過前向加噪與反向去噪學習如何從噪聲逐步還原清晰資料。" },
+      { id: "3-26", chapter: "第三章：生成式 AI", question: "F1-Score 是一種評估分類模型性能的衡量指標，請問下列哪一項對於 F1-Score 的描述是正確的？", options: ["它是精準率與召回率的算術平均值", "它是精準率與召回率的幾何平均值", "它是精準率與召回率的加權平均值", "它是精準率與召回率的調和平均值"], answerIndex: 3, explanation: "F1-Score 是精準率（Precision）與召回率（Recall）的調和平均數：2 × (P × R) / (P + R)。" },
+      { id: "3-27", chapter: "第三章：生成式 AI", question: "下列哪一項描述梯度消失（Vanishing Gradient）問題對生成模型的影響？", options: ["使生成器難以學習有用的特徵", "減少模型的計算時間", "增加生成模型的精度", "增強判別器的能力"], answerIndex: 0, explanation: "梯度消失會使反向傳播訊號趨近於零，導致生成器權重難以更新並學不到有效特徵。" },
+      { id: "3-28", chapter: "第三章：生成式 AI", question: "下列哪一項技術是用於提高生成式AI模型的訓練效率？", options: ["使用更深的神經網路結構", "使用小批量隨機梯度下降（Mini-batch SGD）", "減少訓練數據的多樣性", "停止模型的權重更新"], answerIndex: 1, explanation: "小批量隨機梯度下降（Mini-batch SGD）兼顧梯度估計穩定性與硬體平行運算效率。" },
+      { id: "3-29", chapter: "第三章：生成式 AI", question: "下列哪一項不是用於訓練生成式AI的常見技術？", options: ["自回歸模型（Autoregressive Models）", "變分編碼器（VAE）", "卷積神經網路（CNN）", "生成對抗網路（GAN）"], answerIndex: 2, explanation: "自迴歸模型、VAE 與 GAN 是生成式 AI 核心技術；傳統 CNN 主要是特徵提取／判別架構。" },
+      { id: "3-30", chapter: "第三章：生成式 AI", question: "下列哪一項不是提升生成對抗網路（GAN）訓練穩定性的常見技術？", options: ["使用小批量歧視（Mini-batch Discrimination）", "應用 WGAN 的 Earth Mover 距離", "採用梯度懲罰（Gradient Penalty）", "使用大批量樣本訓練（Large-batch Training）"], answerIndex: 3, explanation: "WGAN、梯度懲罰（GP）與小批量鑑別皆有助穩定 GAN 訓練，單純使用極大批量樣本並非穩定 GAN 的標準做法。" },
+      { id: "3-31", chapter: "第三章：生成式 AI", question: "下列哪一項不是訓練生成對抗網路（GAN）時會遇到的問題？", options: ["數據數量不足或品質不一", "生成器與鑑別器之間的訓練不平衡，一方過強或過弱", "鑑別器對生成器的回饋信號過於微弱，導致梯度消失", "新的輸入讓模型對舊資料產生偏差，導致災難性遺忘"], answerIndex: 3, explanation: "GAN 常見問題包含資料不足／品質差、攻守失衡與梯度消失；災難性遺忘較常見於持續學習場景。" },
+      { id: "3-32", chapter: "第三章：生成式 AI", question: "當生成式AI模型的複雜度過高時，下列哪一種情況最有可能發生？", options: ["模型過擬合（Overfitting）訓練資料", "模型無法擬合訓練資料", "模型將更容易泛化至未見過的資料", "模型計算效率顯著提"], answerIndex: 0, explanation: "模型容量／複雜度過高且缺乏足夠資料或正則化時，容易發生過擬合（Overfitting）。" },
+      { id: "3-33", chapter: "第三章：生成式 AI", question: "在語言模型的訓練中，通常使用下列哪一種技術來防止過擬合（Overfitting）？", options: ["過濾", "正則化", "特徵擴展", "資料增強"], answerIndex: 1, explanation: "正則化（Regularization，如權重衰減、Dropout）能限制模型過度擬合訓練資料。" },
+      { id: "3-34", chapter: "第三章：生成式 AI", question: "下列哪一項關於生成式AI中模式崩潰（Mode Collapse）的敘述是正確的？", options: ["模式崩潰是指生成器產生出各種多樣化且符合真實分佈的樣本", "模式崩潰是指生成器產生出多引非常真實的樣本，導致鑑別器無法區分真實與生成的數據", "模式崩潰會導致生成器集中生成一小部分特定類型的樣本，而忽略其他潛在樣本的類型", "模式崩潰表示生成器與鑑別器達到了訓練的平衡狀態，這是生成對抗網路（GAN）模型穩定訓練的結果"], answerIndex: 2, explanation: "模式崩潰（Mode Collapse）指生成器只產出少數幾種樣本便能騙過判別器，導致生成多樣性大幅下降。" },
+      { id: "3-35", chapter: "第三章：生成式 AI", question: "請問變分自編碼器（VAE）的損失函數通常包含下列哪一項？", options: ["梯度損失和重構損失", "交叉熵損失和正則化項", "重構損失和 KL 散度", "均方誤差（MSE）和對比損失"], answerIndex: 2, explanation: "VAE 損失函數由「重構損失（Reconstruction Loss）」與「KL 散度（KL Divergence）」組成。" },
+      { id: "3-36", chapter: "第三章：生成式 AI", question: "在多模態生成模型中，下列哪一項不是實現多模態數據融合的主要策略？", options: ["將不同模態的特徵映射到共同的嵌入空間", "獨立訓練每個模態的模型，然後將結果融合", "使用多個模態感測器對多種模態數據進行聯合處理", "利用多模態數據進行端到端訓練"], answerIndex: 1, explanation: "多模態融合常透過共同嵌入空間、聯合處理或端到端訓練，而非完全孤立訓練後才簡單拼接。" },
+      { id: "3-37", chapter: "第三章：生成式 AI", question: "關於生成式AI的應用敘述，下列哪一項是錯誤的？", options: ["生成式AI可以應用於程式碼產生、工程、行銷、客服服務、金融等多個業務範疇", "生成式AI可以用於改善客戶體驗，例如通過聊天機器人，虛擬助理和醫療聯絡中心等功能", "生成式AI僅能在程式碼產生方面得到成效，其他應用場景如內容建立和文字摘要無法實現", "生成式AI可以加速藝術和寫作中的創意內容製作，如文字、動畫、影片和影像等"], answerIndex: 2, explanation: "生成式 AI 廣泛應用於文案撰寫、摘要、翻譯、程式碼生成、客服與多媒體創作，並非僅限程式碼。" },
+      { id: "3-38", chapter: "第三章：生成式 AI", question: "在法律行業中，生成式AI可以應用於多個方面，但下列哪一項不是生成式AI目前能夠實現的？", options: ["自動生成法律檔草稿，如合同和訴狀", "預測案件結果，基於歷史案件數據", "生成法律意見書，提供定制化法律諮詢", "完全替代人類律師進行法庭辯論和交叉審問"], answerIndex: 3, explanation: "生成式 AI 可輔助草擬文件或檢索參考，但無法完全替代具備專業判斷與法定資格的律師進行法庭辯論。" },
+      { id: "3-39", chapter: "第三章：生成式 AI", question: "生成式AI在影像後製中，主要用於下列哪一項技術？", options: ["自動生成特效", "提高影片壓縮效率", "深度偽造技術", "智能剪輯場景"], answerIndex: 2, explanation: "依本題庫解答，本題正確答案為 C。" },
+      { id: "3-40", chapter: "第三章：生成式 AI", question: "下列哪一個領域常使用生成式 AI？", options: ["航空工程", "農利工程", "電機工程", "合成圖像"], answerIndex: 3, explanation: "合成圖像（Synthetic Image Generation）是生成式 AI 最常見且核心的應用領域之一。" },
+      { id: "3-41", chapter: "第三章：生成式 AI", question: "生成式 AI 雖然在多個領域取得了顯著進展，但仍存在一些限制和挑戰，下列哪一項不是現代生成式 AI 能夠實現的？", options: ["大量文本的語法糾錯", "流行語言的準確翻譯", "複雜情節的文本創作", "簡單文本的歸納總結"], answerIndex: 1, explanation: "依本題庫解答，本題正確答案為 B（需注意生成式 AI 仍可能出現事實幻覺或語意偏差）。" },
+      { id: "3-42", chapter: "第三章：生成式 AI", question: "下列哪一項是生成式 AI 在圖像生成中的典型應用？", options: ["圖片壓縮", "圖像風格轉換", "圖片分類", "邊緣檢測"], answerIndex: 1, explanation: "圖像風格轉換（Style Transfer）可將影像轉換為特定畫風或視覺風格，是圖像生成的典型應用。" },
+      { id: "3-43", chapter: "第三章：生成式 AI", question: "下列哪一項是生成式 AI 在道德和法律上的一大挑戰？", options: ["圖像壓縮", "影片切割", "硬體容量", "侵犯隱私"], answerIndex: 3, explanation: "訓練資料或生成內容若涉及未經授權的個資、肖像或敏感資訊，容易引發侵犯隱私等道德與法律爭議。" },
+      { id: "3-44", chapter: "第三章：生成式 AI", question: "在使用生成式 AI 時，下列哪一種行為可能涉及侵犯智慧財產權？", options: ["用 AI 生成的藝術作品並宣稱是自己的創作", "用 AI 生成隨機數據集進行訓練", "使用 AI 生成數學公式", "用 AI 生成個人筆記作為學習輔助工具"], answerIndex: 0, explanation: "將 AI 生成作品冒充為完全原創並對外宣稱著作權或進行商業侵權，涉及智慧財產權與誠信風險。" },
+      { id: "3-45", chapter: "第三章：生成式 AI", question: "下列哪一項並非使用生成式 AI 的正確方法？", options: ["生成式 AI 的答案不一定正確，需多方參考", "保持對輸出的懷疑態度再次檢查", "完全信任生成式 AI 的答案", "生成式 AI 只是輔助工具，仍須人工的再次確認"], answerIndex: 2, explanation: "生成式 AI 可能產生「幻覺（Hallucination）」或錯誤資訊，切勿盲目完全信任，應由人工查證。" },
+      { id: "3-46", chapter: "第三章：生成式 AI", question: "下列哪一項關於 AI 的隱私權挑戰的敘述是錯誤的？", options: ["AI 系統缺乏控制和透明度，讓用戶不清楚其資料是否已被蒐集", "反覆使用資料可能導致 AI 的分析超出用戶同意的資料使用範圍", "AI 無法針對不同數據集進行組合或重新演算，因此不可能推測出特定人的身分", "資料的推斷及重新識別可能嚴重侵犯個人隱私"], answerIndex: 2, explanation: "即使資料去識別化，透過多方資料交叉比對與重新演算仍可能被「重新識別（Re-identification）」，故 C 錯誤。" },
+      { id: "3-47", chapter: "第三章：生成式 AI", question: "下列哪一項最適合用來防範生成式 AI 生成人臉的深偽（Deepfake）技術？", options: ["增強數據隱私保護", "開發更強的反深偽技術", "禁止所有生成式 AI 相關研究", "創建更多生成式 AI 應用"], answerIndex: 1, explanation: "面對 Deepfake 偽造風險，應透過提升辨識與驗證能力的「反深偽技術（Deepfake Detection）」與溯源機制防範。" },
+      { id: "3-48", chapter: "第三章：生成式 AI", question: "在使用生成式 AI 進行內容創作時，下列哪一項措施對於維護輸出內容的品質和可信性最為關鍵？", options: ["依據預訓練模型的默認設置，不進行任何調整", "在訓練數據集中包含多樣化的樣本，以減少偏差", "忽略用戶回饋，只依據模型的自我學習", "定期對生成內容進行法律和倫理審查"], answerIndex: 3, explanation: "定期進行法律與倫理審查能及早發現偏見、侵權或合規風險，確保輸出內容的可信性與安全性。" },
+      { id: "3-49", chapter: "第三章：生成式 AI", question: "下列哪一項不屬於生成式 AI？", options: ["ChatGPT", "Google Gemini", "DALL-E", "PowerPoint"], answerIndex: 3, explanation: "ChatGPT、Google Gemini 與 DALL-E 皆屬生成式 AI 模型／應用；PowerPoint 主要是簡報製作軟體。" },
+      { id: "3-50", chapter: "第三章：生成式 AI", question: "使用者可以透過下列哪一項控制 ChatGPT、Midjourney 生成適當的內容？", options: ["Prompt", "Temperature", "Message", "Content"], answerIndex: 0, explanation: "使用者透過撰寫與調整「提示詞（Prompt）」來引導模型生成所需的內容與風格。" },
+      { id: "3-51", chapter: "第三章：生成式 AI", question: "在 GPT 系列模型中，對於生成長文本來說，下列哪一項技術最不可能帶來顯著改善？", options: ["增加模型的參數數量", "增加訓練資料的多樣性", "提高輸入文本的上下文窗口大小", "降低模型的層數"], answerIndex: 3, explanation: "降低模型層數會削弱表徵能力，不利於長文本理解與生成；擴大上下文窗口與資料多樣性則更有幫助。" },
+      { id: "3-52", chapter: "第三章：生成式 AI", question: "請問 OpenAI CLIP 的功能可以做到以下哪一項？", options: ["依文字生成圖片", "將輸入圖片分類", "讓影片聲音變好", "將圖像轉成影片"], answerIndex: 1, explanation: "CLIP 可將影像與文字對應到同一語意空間，進而執行零樣本／跨模態的圖片分類與檢索。" },
+      { id: "3-53", chapter: "第三章：生成式 AI", question: "關於常見的生成式 AI 技術與生成類型對應，下列哪一項錯誤？", options: ["StyleGAN - 提供多種生成工具，用於創建影片、動畫、影像效果等", "LLaMA - 可用於生成自然語言文本，包括文章、摘要、對話、翻譯、問答系統等", "DALL-E - 將文本描述轉換為圖像，可生成各種類型的圖像", "MuseNet - 用於生成多種風格和樂器的音樂作品"], answerIndex: 0, explanation: "StyleGAN 主要是用於高解析度人臉或圖像生成的 GAN 模型，並非全方位的影片動畫工具套件。" },
+      { id: "3-54", chapter: "第三章：生成式 AI", question: "在使用生成對抗網路（GAN）進行圖像生成時，下列哪一個工具或框架最適合用來快速建構和訓練生成對抗網路（GAN）模型，並且提供了豐富的高階 API 支持？", options: ["PyTorch", "TensorFlow", "Keras", "Scikit-learn"], answerIndex: 2, explanation: "Keras 提供簡潔直覺的高階 API，適合快速建構與實驗深度學習與生成模型。" }
+    ];
+
+    // 測驗常數設定
+    const EXAM_QUESTION_COUNT = 50;
+    const EXAM_DURATION_SECONDS = 40 * 60; // 40 分鐘 = 2400 秒
+    const POINTS_PER_QUESTION = 2;
+    const PASS_SCORE = 70;
+    const OPTION_LABELS = ["A", "B", "C", "D"];
+
+    // 測驗狀態
+    let examQuestions = [];      // 本次抽出的 50 題（含打亂後的選項與正確新索引）
+    let userAnswers = [];        // 每題使用者選擇的打亂後選項索引（0~3 或 null）
+    let currentIndex = 0;        // 目前題目索引（0~49）
+    let remainingSeconds = EXAM_DURATION_SECONDS;
+    let timerInterval = null;
+    let isPaused = false;
+    let isSubmitted = false;
+    let reviewFilter = "all";    // 'all' | 'incorrect'
+    let toastTimeout = null;
+
+    /**
+     * 洗牌演算法（Fisher-Yates Shuffle），確保每次抽題與選項順序皆隨機不同
+     */
+    function shuffleArray(source) {
+      const arr = source.slice();
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    /**
+     * 顯示提示訊息（取代 alert）
+     */
+    function showToast(message, type = "info") {
+      const banner = document.getElementById("toastBanner");
+      const inner = document.getElementById("toastInner");
+      const textEl = document.getElementById("toastMessage");
+
+      inner.className = "rounded-xl px-4 py-3 text-sm font-medium flex items-center justify-between gap-3 border shadow-sm";
+      if (type === "warn") {
+        inner.classList.add("bg-amber-50", "border-amber-200", "text-amber-900");
+      } else if (type === "success") {
+        inner.classList.add("bg-emerald-50", "border-emerald-200", "text-emerald-900");
+      } else {
+        inner.classList.add("bg-indigo-50", "border-indigo-200", "text-indigo-900");
+      }
+
+      textEl.textContent = message;
+      banner.classList.remove("hidden");
+
+      if (toastTimeout) clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        hideToast();
+      }, 4000);
+    }
+
+    function hideToast() {
+      document.getElementById("toastBanner").classList.add("hidden");
+    }
+
+    /**
+     * 格式化秒數為 MM:SS
+     */
+    function formatTime(sec) {
+      const safeSec = Math.max(0, sec);
+      const mins = Math.floor(safeSec / 60);
+      const secs = safeSec % 60;
+      return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    }
+
+    /**
+     * 啟動或重新開始測驗：隨機抽 50 題並打亂每題選項順序
+     */
+    function startNewExam() {
+      try {
+        const picked = shuffleArray(QUESTION_BANK).slice(0, EXAM_QUESTION_COUNT);
+
+        examQuestions = picked.map((item) => {
+          const indexedOptions = item.options.map((text, idx) => ({
+            text,
+            isCorrect: idx === item.answerIndex
+          }));
+          const shuffledOpts = shuffleArray(indexedOptions);
+          const newCorrectIndex = shuffledOpts.findIndex((o) => o.isCorrect);
+
+          return {
+            id: item.id,
+            chapter: item.chapter,
+            question: item.question,
+            options: shuffledOpts.map((o) => o.text),
+            correctIndex: newCorrectIndex,
+            explanation: item.explanation
+          };
+        });
+
+        userAnswers = new Array(EXAM_QUESTION_COUNT).fill(null);
+        currentIndex = 0;
+        remainingSeconds = EXAM_DURATION_SECONDS;
+        isPaused = false;
+        isSubmitted = false;
+        reviewFilter = "all";
+
+        document.getElementById("resultView").classList.add("hidden");
+        document.getElementById("examView").classList.remove("hidden");
+        document.getElementById("bottomActionBar").classList.remove("hidden");
+        document.getElementById("headerControls").classList.remove("hidden");
+        document.getElementById("togglePauseBtn").textContent = "暫停";
+
+        updateTimerUI();
+        startTimer();
+        renderQuestion();
+        renderPalettes();
+        updateProgressUI();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        showToast("已重新抽取 50 題並打亂選項，祝你作答順利！", "success");
+      } catch (err) {
+        showToast("抽題發生錯誤，請重新整理頁面再試。", "warn");
+      }
+    }
+
+    /**
+     * 啟動倒數計時器
+     */
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        if (isPaused || isSubmitted) return;
+        remainingSeconds -= 1;
+        updateTimerUI();
+
+        if (remainingSeconds <= 0) {
+          remainingSeconds = 0;
+          updateTimerUI();
+          clearInterval(timerInterval);
+          finalizeExam("timeout");
+        }
+      }, 1000);
+    }
+
+    /**
+     * 更新計時器顯示樣式
+     */
+    function updateTimerUI() {
+      const display = document.getElementById("timerDisplay");
+      const box = document.getElementById("timerBox");
+      display.textContent = formatTime(remainingSeconds);
+
+      box.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-mono font-bold text-sm sm:text-base border";
+      if (isPaused) {
+        box.classList.add("bg-amber-50", "border-amber-300", "text-amber-800");
+      } else if (remainingSeconds <= 300) {
+        box.classList.add("bg-rose-50", "border-rose-300", "text-rose-700");
+      } else {
+        box.classList.add("bg-indigo-50", "border-indigo-200", "text-indigo-700");
+      }
+    }
+
+    /**
+     * 暫停／繼續計時
+     */
+    function togglePauseExam() {
+      if (isSubmitted) return;
+      isPaused = !isPaused;
+      const btn = document.getElementById("togglePauseBtn");
+      btn.textContent = isPaused ? "繼續" : "暫停";
+      updateTimerUI();
+      showToast(isPaused ? "計時已暫停，按「繼續」可恢復作答。" : "已恢復計時。", "info");
+    }
+
+    /**
+     * 渲染當前題目與選項（作答期間絕不顯示正確答案與解析）
+     */
+    function renderQuestion() {
+      const q = examQuestions[currentIndex];
+      if (!q) return;
+
+      document.getElementById("qNumberBadge").textContent = `第 ${currentIndex + 1} / ${EXAM_QUESTION_COUNT} 題`;
+      document.getElementById("qChapterBadge").textContent = q.chapter;
+      document.getElementById("qOriginBadge").textContent = `原題號：${q.id}`;
+      document.getElementById("questionText").textContent = q.question;
+
+      const optionsContainer = document.getElementById("optionsContainer");
+      optionsContainer.innerHTML = "";
+
+      const selectedIdx = userAnswers[currentIndex];
+
+      q.options.forEach((optText, idx) => {
+        const isSelected = selectedIdx === idx;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.setAttribute("role", "radio");
+        btn.setAttribute("aria-checked", isSelected ? "true" : "false");
+        btn.onclick = () => selectOption(idx);
+
+        btn.className = [
+          "w-full text-left p-3.5 sm:p-4 rounded-xl border-2 transition flex items-start gap-3.5 cursor-pointer",
+          isSelected
+            ? "border-indigo-600 bg-indigo-50/80 text-slate-900 shadow-xs"
+            : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-slate-50 text-slate-800"
+        ].join(" ");
+
+        const badge = document.createElement("span");
+        badge.className = [
+          "w-7 h-7 rounded-lg flex items-center justify-center text-xs sm:text-sm font-bold shrink-0 mt-0.5 transition",
+          isSelected
+            ? "bg-indigo-600 text-white"
+            : "bg-slate-100 text-slate-700"
+        ].join(" ");
+        badge.textContent = OPTION_LABELS[idx];
+
+        const labelText = document.createElement("span");
+        labelText.className = "text-sm sm:text-base leading-relaxed flex-1";
+        labelText.textContent = optText;
+
+        btn.appendChild(badge);
+        btn.appendChild(labelText);
+        optionsContainer.appendChild(btn);
+      });
+
+      document.getElementById("prevQuestionBtn").disabled = currentIndex === 0;
+      document.getElementById("nextQuestionBtn").disabled = currentIndex === EXAM_QUESTION_COUNT - 1;
+    }
+
+    /**
+     * 選擇選項
+     */
+    function selectOption(optionIdx) {
+      if (isSubmitted) return;
+      userAnswers[currentIndex] = optionIdx;
+      renderQuestion();
+      renderPalettes();
+      updateProgressUI();
+    }
+
+    /**
+     * 清除目前題目的選項
+     */
+    function clearCurrentAnswer() {
+      if (isSubmitted) return;
+      userAnswers[currentIndex] = null;
+      renderQuestion();
+      renderPalettes();
+      updateProgressUI();
+    }
+
+    /**
+     * 切換題號
+     */
+    function goToQuestion(targetIndex) {
+      if (targetIndex < 0 || targetIndex >= EXAM_QUESTION_COUNT) return;
+      currentIndex = targetIndex;
+      renderQuestion();
+      renderPalettes();
+    }
+
+    /**
+     * 更新作答進度條與已作答題數
+     */
+    function updateProgressUI() {
+      const answeredCount = userAnswers.filter((a) => a !== null).length;
+      const pct = Math.round((answeredCount / EXAM_QUESTION_COUNT) * 100);
+      document.getElementById("progressBar").style.width = `${pct}%`;
+      document.getElementById("answeredCountBadge").textContent = `已作答：${answeredCount} / ${EXAM_QUESTION_COUNT} 題`;
+    }
+
+    /**
+     * 渲染桌機與手機題號跳轉面板
+     */
+    function renderPalettes() {
+      const buildGrid = (containerId) => {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+
+        for (let i = 0; i < EXAM_QUESTION_COUNT; i++) {
+          const isCurrent = i === currentIndex;
+          const isAnswered = userAnswers[i] !== null;
+
+          const itemBtn = document.createElement("button");
+          itemBtn.type = "button";
+          itemBtn.textContent = String(i + 1);
+          itemBtn.onclick = () => {
+            goToQuestion(i);
+            toggleMobilePalette(false);
+          };
+
+          itemBtn.className = [
+            "h-9 rounded-lg text-xs font-bold border transition cursor-pointer flex items-center justify-center",
+            isCurrent
+              ? "bg-indigo-600 text-white border-indigo-600 ring-2 ring-indigo-200"
+              : isAnswered
+                ? "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200"
+                : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100"
+          ].join(" ");
+
+          container.appendChild(itemBtn);
+        }
+      };
+
+      buildGrid("desktopPalette");
+      buildGrid("mobilePalette");
+    }
+
+    /**
+     * 開關手機版題號抽屜
+     */
+    function toggleMobilePalette(show) {
+      const modal = document.getElementById("mobilePaletteModal");
+      if (show) {
+        renderPalettes();
+        modal.classList.remove("hidden");
+      } else {
+        modal.classList.add("hidden");
+      }
+    }
+
+    /**
+     * 開啟交卷確認視窗
+     */
+    function requestSubmitExam() {
+      if (isSubmitted) return;
+      const answeredCount = userAnswers.filter((a) => a !== null).length;
+      const unansweredCount = EXAM_QUESTION_COUNT - answeredCount;
+      const desc = document.getElementById("confirmSubmitDesc");
+
+      if (unansweredCount > 0) {
+        desc.textContent = `你目前已完成 ${answeredCount} 題，尚有 ${unansweredCount} 題未作答（未作答將以 0 分計算）。確定要交卷並查看答案與解析嗎？`;
+      } else {
+        desc.textContent = `你已完成全部 ${EXAM_QUESTION_COUNT} 題作答！交卷後將立即顯示總分、及格狀態與逐題解析。`;
+      }
+
+      const modal = document.getElementById("confirmSubmitModal");
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+    }
+
+    function closeSubmitModal() {
+      const modal = document.getElementById("confirmSubmitModal");
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    /**
+     * 重新抽題確認（測驗中直接切換）
+     */
+    function requestRestartExam() {
+      startNewExam();
+    }
+
+    /**
+     * 交卷計算成績並顯示完整答案與解析
+     */
+    function finalizeExam(reason) {
+      closeSubmitModal();
+      isSubmitted = true;
+      if (timerInterval) clearInterval(timerInterval);
+
+      let correctCount = 0;
+      let wrongCount = 0;
+      let unansweredCount = 0;
+
+      examQuestions.forEach((q, idx) => {
+        const ans = userAnswers[idx];
+        if (ans === null) {
+          unansweredCount += 1;
+        } else if (ans === q.correctIndex) {
+          correctCount += 1;
+        } else {
+          wrongCount += 1;
+        }
+      });
+
+      const score = correctCount * POINTS_PER_QUESTION;
+      const passed = score >= PASS_SCORE;
+
+      document.getElementById("examView").classList.add("hidden");
+      document.getElementById("bottomActionBar").classList.add("hidden");
+      document.getElementById("headerControls").classList.add("hidden");
+      document.getElementById("resultView").classList.remove("hidden");
+
+      const passBadge = document.getElementById("passBadge");
+      passBadge.textContent = passed ? "合格（及格）" : "未合格（再接再厲）";
+      passBadge.className = passed
+        ? "px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300"
+        : "px-3 py-1 rounded-full text-xs sm:text-sm font-bold bg-rose-100 text-rose-800 border border-rose-300";
+
+      document.getElementById("submitReasonText").textContent =
+        reason === "timeout" ? "作答時間已到，系統自動交卷" : "已手動完成交卷";
+
+      document.getElementById("finalScore").textContent = String(score);
+      document.getElementById("statCorrect").textContent = `${correctCount} 題`;
+      document.getElementById("statWrong").textContent = `${wrongCount} 題`;
+      document.getElementById("statUnanswered").textContent = `${unansweredCount} 題`;
+
+      setReviewFilter("all");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    /**
+     * 切換結果頁篩選模式：'all' 或 'incorrect'
+     */
+    function setReviewFilter(filterMode) {
+      reviewFilter = filterMode;
+      const allBtn = document.getElementById("filterAllBtn");
+      const incBtn = document.getElementById("filterIncorrectBtn");
+
+      if (filterMode === "all") {
+        allBtn.className = "px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-indigo-600 text-white transition cursor-pointer";
+        incBtn.className = "px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer";
+      } else {
+        incBtn.className = "px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-bold bg-indigo-600 text-white transition cursor-pointer";
+        allBtn.className = "px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-medium text-slate-600 hover:text-slate-900 transition cursor-pointer";
+      }
+
+      renderReviewList();
+    }
+
+    /**
+     * 渲染逐題答案與解析
+     */
+    function renderReviewList() {
+      const listEl = document.getElementById("reviewList");
+      listEl.innerHTML = "";
+
+      let renderedCount = 0;
+
+      examQuestions.forEach((q, idx) => {
+        const userIdx = userAnswers[idx];
+        const isUnanswered = userIdx === null;
+        const isCorrect = !isUnanswered && userIdx === q.correctIndex;
+
+        if (reviewFilter === "incorrect" && isCorrect) {
+          return;
+        }
+        renderedCount += 1;
+
+        const card = document.createElement("article");
+        card.className = [
+          "bg-white rounded-2xl border p-4 sm:p-6 shadow-xs",
+          isCorrect
+            ? "border-emerald-200"
+            : isUnanswered
+              ? "border-amber-200"
+              : "border-rose-200"
+        ].join(" ");
+
+        const statusBadgeText = isCorrect
+          ? "✓ 答對（+2 分）"
+          : isUnanswered
+            ? "— 未作答（0 分）"
+            : "✕ 答錯（0 分）";
+
+        const statusBadgeClass = isCorrect
+          ? "bg-emerald-100 text-emerald-800"
+          : isUnanswered
+            ? "bg-amber-100 text-amber-800"
+            : "bg-rose-100 text-rose-800";
+
+        const topBar = document.createElement("div");
+        topBar.className = "flex flex-wrap items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-100";
+        topBar.innerHTML = `
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="font-bold text-slate-900 text-sm sm:text-base">第 ${idx + 1} 題</span>
+            <span class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs">${q.chapter}</span>
+            <span class="text-xs text-slate-400">原題號：${q.id}</span>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-xs font-bold ${statusBadgeClass}">${statusBadgeText}</span>
+        `;
+
+        const qTitle = document.createElement("p");
+        qTitle.className = "font-bold text-slate-900 text-sm sm:text-base leading-relaxed mb-4";
+        qTitle.textContent = q.question;
+
+        const optsWrap = document.createElement("div");
+        optsWrap.className = "space-y-2 mb-4";
+
+        q.options.forEach((optText, oIdx) => {
+          const isUserChoice = userIdx === oIdx;
+          const isRightChoice = q.correctIndex === oIdx;
+
+          let rowClass = "border-slate-200 bg-slate-50/60 text-slate-700";
+          let tagHtml = "";
+
+          if (isRightChoice) {
+            rowClass = "border-emerald-400 bg-emerald-50 text-emerald-950 font-medium";
+            tagHtml = `<span class="ml-auto text-xs font-bold px-2 py-0.5 rounded bg-emerald-600 text-white shrink-0">正確答案</span>`;
+          } else if (isUserChoice && !isRightChoice) {
+            rowClass = "border-rose-300 bg-rose-50 text-rose-950";
+            tagHtml = `<span class="ml-auto text-xs font-bold px-2 py-0.5 rounded bg-rose-600 text-white shrink-0">你的作答</span>`;
+          }
+
+          const row = document.createElement("div");
+          row.className = `p-3 rounded-xl border text-xs sm:text-sm flex items-center gap-2.5 ${rowClass}`;
+          row.innerHTML = `
+            <span class="font-bold shrink-0">${OPTION_LABELS[oIdx]}.</span>
+            <span>${optText}</span>
+            ${tagHtml}
+          `;
+          optsWrap.appendChild(row);
+        });
+
+        const expBox = document.createElement("div");
+        expBox.className = "rounded-xl bg-indigo-50/70 border border-indigo-100 p-3.5 text-xs sm:text-sm text-slate-700 leading-relaxed";
+        expBox.innerHTML = `
+          <div class="font-bold text-indigo-900 mb-1">
+            正確答案：${OPTION_LABELS[q.correctIndex]}（${q.options[q.correctIndex]}）
+          </div>
+          <div><span class="font-semibold text-slate-800">解析：</span>${q.explanation}</div>
+        `;
+
+        card.appendChild(topBar);
+        card.appendChild(qTitle);
+        card.appendChild(optsWrap);
+        card.appendChild(expBox);
+        listEl.appendChild(card);
+      });
+
+      if (renderedCount === 0) {
+        listEl.innerHTML = `
+          <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-600 text-sm">
+            太棒了！本次測驗沒有錯題或未作答題目。
+          </div>
+        `;
+      }
+    }
+
+    /**
+     * 支援桌機左右方向鍵與數字鍵 1~4 快速作答
+     */
+    document.addEventListener("keydown", (event) => {
+      if (isSubmitted) return;
+      const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : "";
+      if (activeTag === "input" || activeTag === "textarea") return;
+
+      if (event.key === "ArrowRight") {
+        goToQuestion(currentIndex + 1);
+      } else if (event.key === "ArrowLeft") {
+        goToQuestion(currentIndex - 1);
+      } else if (["1", "2", "3", "4"].includes(event.key)) {
+        selectOption(Number(event.key) - 1);
+      }
+    });
+
+    // 頁面載入後自動開始測驗
+    window.addEventListener("DOMContentLoaded", () => {
+      startNewExam();
+    });
+  </script>
+</body>
+</html>
